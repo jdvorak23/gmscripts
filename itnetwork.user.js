@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name     ItNetwork
+// @description Zkopíruj, to co jsi chtěl + zkopíruj terminálové příkazy
 // @include https://www.itnetwork.cz*
 // @version  1
 // @grant    none
 // ==/UserScript==
 
-document.addEventListener('copy', ev => {
+document.addEventListener('copy', () => {
     let text = window.getSelection().toString();
     navigator.clipboard.writeText(text);
 });
@@ -18,9 +19,8 @@ for(let pre of [... document.querySelectorAll('pre')]){
     copyButton.style.position = "absolute";
     copyButton.style.right = "5px";
     copyButton.style.top = "5px";
-    let textToCopy = pre.innerText.trim();
     copyButton.addEventListener('click', ()=>{
-        navigator.clipboard.writeText(textToCopy);
+        navigator.clipboard.writeText(pre.innerText.trim());
     });
     pre.style.position = "relative";
     pre.appendChild(copyButton);

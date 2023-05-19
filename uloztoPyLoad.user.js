@@ -16,12 +16,32 @@ class Queue {
     #running = false;
     #urlQueue = [];
     #sendQueue  = [];
-    #timer; 
+    #timer;
+    #processed = 0;
+    #errors = 0;
+    #changeCallback = null;
+    logs = [];
 
     addUrl(url) {
-        this.#urlQueue.push(url)
+        this.#urlQueue.push(url);
+        this.#change();
         this.#run();
     }
+
+    onChange(callback){
+        this.#changeCallback = callback;
+    }
+
+    #change(){
+        if(!this.#changeCallback)
+            return;
+        let files = this.#urlQueue.length + this.#sendQueue.length;
+        if(this.logs.length)
+            this.#changeCallback(files, this.#processed, this.#errors, this.logs[this.logs.length - 1]);
+        else
+            this.#changeCallback(files, this.#processed, this.#errors);
+    }
+
     #run() {
         if (!this.#running) {
             this.#running = true;
@@ -49,8 +69,8 @@ class Queue {
             url: url,
             headers: {},
             onload: (response) => {
-                console.log("Parsed url: ", response.finalUrl);
                 this.#sendQueue.push(response.finalUrl);
+                this.#addLog("Parsed url: " + response.finalUrl);
             }
         });
 
@@ -72,15 +92,19 @@ class Queue {
             url: this.#server + "/json/add_package",
             data: formData,
             headers: {},
-            onload: function (response) {
+            onload: (response) => {
                 if(response.statusText === "OK"){
-                    if(response.responseText)
-                        console.log("PyLoad server is responding, but something is wrong. Are you logged in on this browser?");
-                    else
-                        console.log("File successfully added to the pyLoad server: ", url);
+                    if(response.responseText){
+                        this.#errors++;
+                        this.#addLog("PyLoad server is responding, but something is wrong. Are you logged in on this browser?");
+                    }else{
+                        this.#processed++;
+                        this.#addLog("Added to the pyLoad server: " + url);
+                    }
+                }else{
+                    this.#errors++;
+                    this.#addLog("Something is wrong. Have you properly set your pyLoad #server to this GreaseMonkey script?");
                 }
-                else
-                    console.log("Something is wrong. Have you properly set your pyLoad #server to this GreaseMonkey script?");
             }
         });
         return true;
@@ -89,6 +113,80 @@ class Queue {
     #getName(url){
         let pos = url.lastIndexOf("/");
         return url.substring(pos + 1);
+    }
+    #addLog(log){
+        this.logs.push(log);
+        console.log(log);
+        this.#change();
+    }
+}
+
+class FooterInfo{
+    #elements = {};
+    constructor(element = document.body) {
+        element.append(this.footer);
+        this.footer.append(this.queueCounter);
+        this.footer.append(this.#createElement("Files in the queue"));
+        this.footer.append(this.successCounter);
+        this.footer.append(this.#createElement("Files processed"));
+        const logLabel = this.#createElement("Log:");
+        logLabel.style.borderLeft = "1px solid gray";
+        this.footer.append(logLabel);
+        this.footer.append(this.logMessage);
+        const errorLabel = this.#createElement("Errors:");
+        errorLabel.style.borderLeft = "1px solid gray";
+        errorLabel.style.marginLeft = "auto";
+        this.footer.append(errorLabel);
+        this.footer.append(this.errorCounter);
+    }
+    get footer(){
+        if(this.#elements.footer)
+            return this.#elements.footer;
+        this.#elements.footer = document.createElement('div');
+        this.#elements.footer.style.position = "fixed";
+        this.#elements.footer.style.display = "flex";
+        this.#elements.footer.style.right = 0;
+        this.#elements.footer.style.left = 0;
+        this.#elements.footer.style.bottom = 0;
+        this.#elements.footer.style.zIndex = 1030;
+        this.#elements.footer.style.backgroundColor = "rgb(231, 231, 231)";
+        this.#elements.footer.style.height = "38px";
+        return this.#elements.footer;
+    }
+    get queueCounter(){
+        if(this.#elements.queueCounter)
+            return this.#elements.queueCounter;
+        this.#elements.queueCounter = this.#createElement();
+        this.#elements.queueCounter.style.backgroundColor = "rgb(255, 193, 7)";
+        return this.#elements.queueCounter;
+    }
+    get successCounter(){
+        if(this.#elements.successCounter)
+            return this.#elements.successCounter;
+        this.#elements.successCounter = this.#createElement();
+        this.#elements.successCounter.style.backgroundColor = "rgb(25, 135, 84)";
+        this.#elements.successCounter.style.color = "white";
+        return this.#elements.successCounter;
+    }
+    get logMessage(){
+        if(this.#elements.logMessage)
+            return this.#elements.logMessage;
+        this.#elements.logMessage = this.#createElement();
+        return this.#elements.logMessage;
+    }
+    get errorCounter(){
+        if(this.#elements.errorCounter)
+            return this.#elements.errorCounter;
+        this.#elements.errorCounter = this.#createElement();
+        this.#elements.errorCounter.style.backgroundColor = "rgb(220, 53, 69)";
+        this.#elements.errorCounter.style.color = "white";
+        return this.#elements.errorCounter;
+    }
+    #createElement(innerText = ""){
+        const element = document.createElement('div');
+        element.style.padding = "10px";
+        element.innerText = innerText;
+        return element;
     }
 }
 
@@ -121,9 +219,20 @@ window.addEventListener('load', () => {
                 link.parentElement.insertBefore(button, link);
             }
         });
+        const Footer = new FooterInfo();
+        const changeFooter = function(queuedFiles = 0, processedFiles = 0, errors = 0, lastLog = ""){
+            Footer.queueCounter.innerText = queuedFiles;
+            Footer.successCounter.innerText = processedFiles;
+            Footer.errorCounter.innerText = errors;
+            Footer.logMessage.innerText = lastLog;
+        }
+        changeFooter();
+        Q.onChange(changeFooter);
     }
 
     init();
+
+
 });
 
 

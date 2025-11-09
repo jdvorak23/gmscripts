@@ -7,7 +7,7 @@
 // @grant GM.setValue
 // ==/UserScript==
 
-//Pok
+
 window.addEventListener('DOMContentLoaded', async () =>
 {
 	const page = new Page();
